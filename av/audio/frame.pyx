@@ -127,6 +127,15 @@ cdef class AudioFrame(Frame):
         for i, plane in enumerate(frame.planes):
             plane.update(array[i, :])
         return frame
+    
+    def update_from_ndarray(self, array):
+        """
+        Updates a frame from a numpy array.
+        """
+        import numpy as np
+
+        for i, plane in enumerate(self.planes):
+            plane.update(array[i, :])
 
     @property
     def planes(self):

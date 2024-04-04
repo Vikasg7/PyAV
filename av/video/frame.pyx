@@ -376,6 +376,15 @@ cdef class VideoFrame(Frame):
 
         return frame
 
+    def update_from_image(self, img):
+        """
+        Construct a frame from a ``PIL.Image``.
+        """
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+
+        copy_array_to_plane(img, self.planes[0], 3)
+
     @staticmethod
     def from_numpy_buffer(array, format="rgb24"):
         if format in ("rgb24", "bgr24"):
