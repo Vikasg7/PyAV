@@ -132,8 +132,6 @@ cdef class AudioFrame(Frame):
         """
         Updates a frame from a numpy array.
         """
-        import numpy as np
-
         for i, plane in enumerate(self.planes):
             plane.update(array[i, :])
 
