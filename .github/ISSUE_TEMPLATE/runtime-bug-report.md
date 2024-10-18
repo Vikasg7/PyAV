@@ -2,7 +2,6 @@
 name: Runtime bug report
 about: Report on an issue while running PyAV.
 title: "The FOO does not BAR."
-labels: bug
 assignees: ''
 
 ---
@@ -47,27 +46,17 @@ Traceback:
 ```
 {{ Complete output of `python -m av --version`. If this command won't run, you are likely dealing with the build issue and should use the appropriate template. }}
 ```
-- PyAV build:
-```
-{{ Complete output of `python setup.py config --verbose`. }}
-```
-- FFmpeg:
-```
-{{ Complete output of `ffmpeg -version` }}
-```
-
+- [ ] I am/tried using the binary wheels
+- [ ] I compiled from source
 
 ## Research
 
 I have done the following:
 
-- [ ] Checked the [PyAV documentation](https://pyav.org/docs)
+- [ ] Checked the [PyAV documentation](https://pyav.basswood-io.com)
 - [ ] Searched on [Google](https://www.google.com/search?q=pyav+how+do+I+foo)
 - [ ] Searched on [Stack Overflow](https://stackoverflow.com/search?q=pyav)
 - [ ] Looked through [old GitHub issues](https://github.com/PyAV-Org/PyAV/issues?&q=is%3Aissue)
-- [ ] Asked on [PyAV Gitter](https://app.gitter.im/#/room/#PyAV-Org_User-Help:gitter.im)
-- [ ] ... and waited 72 hours for a response.
-
 
 ## Additional context
 

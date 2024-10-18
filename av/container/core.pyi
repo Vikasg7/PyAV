@@ -1,4 +1,4 @@
-from numbers import Real
+from fractions import Fraction
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Callable, Literal, Type, overload
@@ -9,6 +9,8 @@ from av.format import ContainerFormat
 from .input import InputContainer
 from .output import OutputContainer
 from .streams import StreamContainer
+
+Real = int | float | Fraction
 
 class Flags(EnumFlag):
     GENPTS: int
@@ -40,7 +42,7 @@ class Container:
     format: ContainerFormat
     options: dict[str, str]
     container_options: dict[str, str]
-    stream_options: list[str]
+    stream_options: list[dict[str, str]]
     streams: StreamContainer
     metadata: dict[str, str]
     open_timeout: Real | None

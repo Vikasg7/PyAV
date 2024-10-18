@@ -46,8 +46,8 @@ class VideoFrame(Frame):
         width: int | None = None,
         height: int | None = None,
         format: str | None = None,
-        src_colorspace: int | None = None,
-        dst_colorspace: int | None = None,
+        src_colorspace: str | int | None = None,
+        dst_colorspace: str | int | None = None,
         interpolation: int | str | None = None,
         src_color_range: int | str | None = None,
         dst_color_range: int | str | None = None,
@@ -64,3 +64,12 @@ class VideoFrame(Frame):
     ) -> VideoFrame: ...
     @staticmethod
     def from_ndarray(array: _SupportedNDarray, format: str = "rgb24") -> VideoFrame: ...
+    @staticmethod
+    def from_bytes(
+        data: bytes,
+        width: int,
+        height: int,
+        format: str = "rgba",
+        flip_horizontal: bool = False,
+        flip_vertical: bool = False,
+    ) -> VideoFrame: ...

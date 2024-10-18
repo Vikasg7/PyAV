@@ -1,4 +1,5 @@
 include "libavutil/avutil.pxd"
+include "libavutil/buffer.pxd"
 include "libavutil/channel_layout.pxd"
 include "libavutil/dict.pxd"
 include "libavutil/error.pxd"
@@ -7,6 +8,7 @@ include "libavutil/samplefmt.pxd"
 include "libavutil/motion_vector.pxd"
 
 include "libavcodec/avcodec.pxd"
+include "libavcodec/bsf.pxd"
 include "libavdevice/avdevice.pxd"
 include "libavformat/avformat.pxd"
 include "libswresample/swresample.pxd"

@@ -47,17 +47,7 @@ cdef object avrational_to_fraction(const lib.AVRational *input):
         return Fraction(input.num, input.den)
 
 
-cdef object to_avrational(object value, lib.AVRational *input):
-    if value is None:
-        input.num = 0
-        input.den = 1
-        return
-
-    if isinstance(value, Fraction):
-        frac = value
-    else:
-        frac = Fraction(value)
-
+cdef void to_avrational(object frac, lib.AVRational *input):
     input.num = frac.numerator
     input.den = frac.denominator
 
@@ -93,5 +83,4 @@ cdef flag_in_bitfield(uint64_t bitfield, uint64_t flag):
 
 # === BACKWARDS COMPAT ===
 
-from .error import FFmpegError as AVError
 from .error import err_check

@@ -1,5 +1,3 @@
-import warnings
-
 cimport libav as lib
 from libc.stdint cimport int32_t
 
@@ -12,8 +10,6 @@ from av.utils cimport (
     dict_to_avdict,
     to_avrational,
 )
-
-from av.deprecation import AVDeprecationWarning
 
 
 cdef object _cinit_bypass_sentinel = object()
@@ -47,6 +43,9 @@ cdef Stream wrap_stream(Container container, lib.AVStream *c_stream, CodecContex
     elif c_stream.codecpar.codec_type == lib.AVMEDIA_TYPE_SUBTITLE:
         from av.subtitles.stream import SubtitleStream
         py_stream = SubtitleStream.__new__(SubtitleStream, _cinit_bypass_sentinel)
+    elif c_stream.codecpar.codec_type == lib.AVMEDIA_TYPE_ATTACHMENT:
+        from av.attachments.stream import AttachmentStream
+        py_stream = AttachmentStream.__new__(AttachmentStream, _cinit_bypass_sentinel)
     elif c_stream.codecpar.codec_type == lib.AVMEDIA_TYPE_DATA:
         from av.data.stream import DataStream
         py_stream = DataStream.__new__(DataStream, _cinit_bypass_sentinel)
@@ -86,8 +85,6 @@ cdef class Stream:
         self.codec_context = codec_context
         if self.codec_context:
             self.codec_context.stream_index = stream.index
-
-        self.nb_side_data, self.side_data = self._get_side_data(stream)
         
         self.metadata = avdict_to_dict(
             stream.metadata,
@@ -96,9 +93,10 @@ cdef class Stream:
         )
 
     def __repr__(self):
+        name = getattr(self, "name", None)
         return (
             f"<av.{self.__class__.__name__} #{self.index} {self.type or '<notype>'}/"
-            f"{self.name or '<nocodec>'} at 0x{id(self):x}>"
+            f"{name or '<nocodec>'} at 0x{id(self):x}>"
         )
 
     def __setattr__(self, name, value):
@@ -127,20 +125,6 @@ cdef class Stream:
         # It prefers if we pass it parameters via this other object.
         # Lets just copy what we want.
         err_check(lib.avcodec_parameters_from_context(self.ptr.codecpar, self.codec_context.ptr))
-
-    cdef _get_side_data(self, lib.AVStream *stream):
-        # Get DISPLAYMATRIX SideData from a lib.AVStream object.
-        # Returns: tuple[int, dict[str, Any]]
-
-        nb_side_data = stream.nb_side_data
-        side_data = {}
-        
-        for i in range(nb_side_data):
-            # Based on: https://www.ffmpeg.org/doxygen/trunk/dump_8c_source.html#l00430
-            if stream.side_data[i].type == lib.AV_PKT_DATA_DISPLAYMATRIX:
-                side_data["DISPLAYMATRIX"] = lib.av_display_rotation_get(<const int32_t *>stream.side_data[i].data)
-
-        return nb_side_data, side_data
 
     @property
     def id(self):
@@ -239,7 +223,7 @@ cdef class Stream:
 
         :type: :class:`str` or ``None``
         """
-        return self.metadata.get('language')
+        return self.metadata.get("language")
 
     @property
     def type(self):

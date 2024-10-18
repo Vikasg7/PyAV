@@ -1,6 +1,8 @@
 import logging
 import os
 
+cimport libav as lib
+
 from av.codec.codec cimport Codec
 from av.codec.context cimport CodecContext, wrap_codec_context
 from av.container.streams cimport StreamContainer
@@ -47,9 +49,8 @@ cdef class OutputContainer(Container):
 
         :param str codec_name: The name of a codec.
         :param rate: The frame rate for video, and sample rate for audio.
-            Examples for video include ``24``, ``23.976``, and
-            ``Fraction(30000,1001)``. Examples for audio include ``48000``
-            and ``44100``.
+            Examples for video include ``24`` and ``Fraction(30000, 1001)``.
+            Examples for audio include ``48000`` and ``44100``.
         :param template: Copy codec from another :class:`~av.stream.Stream` instance.
         :param dict options: Stream options.
         :param \\**kwargs: Set attributes of the stream.
@@ -91,11 +92,14 @@ cdef class OutputContainer(Container):
         # Now lets set some more sane video defaults
         elif codec.type == lib.AVMEDIA_TYPE_VIDEO:
             codec_context.pix_fmt = lib.AV_PIX_FMT_YUV420P
-            codec_context.width = 640
-            codec_context.height = 480
-            codec_context.bit_rate = 1024000
-            codec_context.bit_rate_tolerance = 128000
-            codec_context.ticks_per_frame = 1
+            codec_context.width = kwargs.pop("width", 640)
+            codec_context.height = kwargs.pop("height", 480)
+            codec_context.bit_rate = kwargs.pop("bit_rate", 1024000)
+            codec_context.bit_rate_tolerance = kwargs.pop("bit_rate_tolerance", 128000)
+            try:
+                to_avrational(kwargs.pop("time_base"), &codec_context.time_base)
+            except KeyError:
+                pass
             to_avrational(rate or 24, &codec_context.framerate)
 
             stream.avg_frame_rate = codec_context.framerate
@@ -104,11 +108,21 @@ cdef class OutputContainer(Container):
         # Some sane audio defaults
         elif codec.type == lib.AVMEDIA_TYPE_AUDIO:
             codec_context.sample_fmt = codec.sample_fmts[0]
-            codec_context.bit_rate = 128000
-            codec_context.bit_rate_tolerance = 32000
-            codec_context.sample_rate = rate or 48000
-            codec_context.channels = 2
-            codec_context.channel_layout = lib.AV_CH_LAYOUT_STEREO
+            codec_context.bit_rate = kwargs.pop("bit_rate", 128000)
+            codec_context.bit_rate_tolerance = kwargs.pop("bit_rate_tolerance", 32000)
+            try:
+                to_avrational(kwargs.pop("time_base"), &codec_context.time_base)
+            except KeyError:
+                pass
+
+            if rate is None:
+                codec_context.sample_rate = 48000
+            elif type(rate) is int:
+                codec_context.sample_rate = rate
+            else:
+                raise TypeError("audio stream `rate` must be: int | None")
+            stream.time_base = codec_context.time_base
+            lib.av_channel_layout_default(&codec_context.ch_layout, 2)
 
         # Some formats want stream headers to be separate
         if self.ptr.oformat.flags & lib.AVFMT_GLOBALHEADER:
@@ -191,6 +205,47 @@ cdef class OutputContainer(Container):
             log.warning("Some options were not used: %s" % unused_options)
 
         self._started = True
+
+    @property
+    def supported_codecs(self):
+        """
+        Returns a set of all codecs this format supports.
+        """
+        result = set()
+        cdef const lib.AVCodec *codec = NULL
+        cdef void *opaque = NULL
+
+        while True:
+            codec = lib.av_codec_iterate(&opaque)
+            if codec == NULL:
+                break
+
+            if lib.avformat_query_codec(self.ptr.oformat, codec.id, lib.FF_COMPLIANCE_NORMAL) == 1:
+                result.add(codec.name)
+
+        return result
+
+
+    @property
+    def default_video_codec(self):
+        """
+        Returns the default video codec this container recommends.
+        """
+        return lib.avcodec_get_name(self.format.optr.video_codec)
+
+    @property
+    def default_audio_codec(self):
+        """
+        Returns the default audio codec this container recommends.
+        """
+        return lib.avcodec_get_name(self.format.optr.audio_codec)
+
+    @property
+    def default_subtitle_codec(self):
+        """
+        Returns the default subtitle codec this container recommends.
+        """
+        return lib.avcodec_get_name(self.format.optr.subtitle_codec)
 
     def close(self):
         for stream in self.streams:

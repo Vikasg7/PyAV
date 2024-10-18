@@ -27,6 +27,21 @@ FFMPEG_LIBRARIES = [
 old_embed_signature = EmbedSignature._embed_signature
 
 
+def insert_enum_in_generated_files(source):
+    # Work around Cython failing to add `enum` to `AVChannel` type.
+    # TODO: Make Cython bug report
+    if source.endswith(".c"):
+        with open(source, "r") as file:
+            content = file.read()
+
+        # Replace "AVChannel __pyx_v_channel;" with "enum AVChannel __pyx_v_channel;"
+        modified_content = re.sub(
+            r"\b(?<!enum\s)(AVChannel\s+__pyx_v_\w+;)", r"enum \1", content
+        )
+        with open(source, "w") as file:
+            file.write(modified_content)
+
+
 def new_embed_signature(self, sig, doc):
     # Strip any `self` parameters from the front.
     sig = re.sub(r"\(self(,\s+)?", "(", sig)
@@ -72,16 +87,17 @@ def get_config_from_pkg_config():
     """
     Get distutils-compatible extension arguments using pkg-config.
     """
+    pkg_config = os.environ.get("PKG_CONFIG", "pkg-config")
     try:
         raw_cflags = subprocess.check_output(
-            ["pkg-config", "--cflags", "--libs"]
+            [pkg_config, "--cflags", "--libs"]
             + ["lib" + name for name in FFMPEG_LIBRARIES]
         )
     except FileNotFoundError:
-        print("pkg-config is required for building PyAV")
+        print(f"{pkg_config} is required for building PyAV")
         exit(1)
     except subprocess.CalledProcessError:
-        print("pkg-config could not find libraries {}".format(FFMPEG_LIBRARIES))
+        print(f"{pkg_config} could not find libraries {FFMPEG_LIBRARIES}")
         exit(1)
 
     known, unknown = parse_cflags(raw_cflags.decode("utf-8"))
@@ -161,16 +177,19 @@ for dirname, dirnames, filenames in os.walk("av"):
                 library_dirs=extension_extra["library_dirs"],
                 sources=[pyx_path],
             ),
-            compiler_directives=dict(
-                c_string_type="str",
-                c_string_encoding="ascii",
-                embedsignature=True,
-                language_level=2,
-            ),
+            compiler_directives={
+                "c_string_type": "str",
+                "c_string_encoding": "ascii",
+                "embedsignature": True,
+                "language_level": 3,
+            },
             build_dir="src",
             include_path=["include"],
         )
 
+for ext in ext_modules:
+    for cfile in ext.sources:
+        insert_enum_in_generated_files(cfile)
 
 # Read package metadata
 about = {}
@@ -179,7 +198,16 @@ with open(about_file, encoding="utf-8") as fp:
     exec(fp.read(), about)
 
 package_folders = pathlib.Path("av").glob("**/")
-package_data = {".".join(pckg.parts): ["*.pxd", "*.pyi", "*.typed"] for pckg in package_folders}
+package_data = {
+    ".".join(pckg.parts): ["*.pxd", "*.pyi", "*.typed"] for pckg in package_folders
+}
+
+# Add include/ headers to av.include
+package_dir = {
+    ".".join(["av", *pckg.parts]): str(pckg)
+    for pckg in pathlib.Path("include").glob("**/")
+}
+package_data.update({pckg: ["*.pxd"] for pckg in package_dir})
 
 
 with open("README.md") as f:
@@ -193,20 +221,20 @@ setup(
     long_description_content_type="text/markdown",
     license="BSD",
     project_urls={
-        "Bug Reports": "https://github.com/PyAV-Org/PyAV/issues",
-        "Documentation": "https://pyav.org/docs",
-        "Feedstock": "https://github.com/conda-forge/av-feedstock",
+        "Bug Reports": "https://github.com/PyAV-Org/PyAV/discussions/new?category=4-bugs",
+        "Documentation": "https://pyav.basswood-io.com",
         "Download": "https://pypi.org/project/av",
     },
     author="Mike Boers",
     author_email="pyav@mikeboers.com",
     url="https://github.com/PyAV-Org/PyAV",
-    packages=find_packages(exclude=["build*", "examples*", "scratchpad*", "tests*"]),
+    packages=find_packages(exclude=["build*", "examples*", "tests*", "include*"])
+    + list(package_dir.keys()),
+    package_dir=package_dir,
     package_data=package_data,
     python_requires=">=3.9",
     zip_safe=False,
     ext_modules=ext_modules,
-    test_suite="tests",
     entry_points={
         "console_scripts": ["pyav = av.__main__:main"],
     },
@@ -224,6 +252,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Multimedia :: Sound/Audio",
         "Topic :: Multimedia :: Sound/Audio :: Conversion",

@@ -1,3 +1,5 @@
+from av.error cimport err_check
+from av.opaque cimport opaque_container
 from av.utils cimport avrational_to_fraction, to_avrational
 
 from av.sidedata.sidedata import SideDataContainer
@@ -21,11 +23,10 @@ cdef class Frame:
             lib.av_frame_free(&self.ptr)
 
     def __repr__(self):
-        return f"av.{self.__class__.__name__} #{self.index} pts={self.pts} at 0x{id(self):x}>"
+        return f"av.{self.__class__.__name__} pts={self.pts} at 0x{id(self):x}>"
 
     cdef _copy_internal_attributes(self, Frame source, bint data_layout=True):
         """Mimic another frame."""
-        self.index = source.index
         self._time_base = source._time_base
         lib.av_frame_copy_props(self.ptr, source.ptr)
         if data_layout:
@@ -33,8 +34,7 @@ cdef class Frame:
             self.ptr.format = source.ptr.format
             self.ptr.width = source.ptr.width
             self.ptr.height = source.ptr.height
-            self.ptr.channel_layout = source.ptr.channel_layout
-            self.ptr.channels = source.ptr.channels
+            self.ptr.ch_layout = source.ptr.ch_layout
 
     cdef _init_user_attributes(self):
         pass  # Dummy to match the API of the others.
@@ -137,3 +137,26 @@ cdef class Frame:
         if self._side_data is None:
             self._side_data = SideDataContainer(self)
         return self._side_data
+
+    def make_writable(self):
+        """
+        Ensures that the frame data is writable. Copy the data to new buffer if it is not.
+        This is a wrapper around :ffmpeg:`av_frame_make_writable`.
+        """
+        cdef int ret
+
+        ret = lib.av_frame_make_writable(self.ptr)
+        err_check(ret)
+
+    @property
+    def opaque(self):
+        if self.ptr.opaque_ref is not NULL:
+            return opaque_container.get(<char *> self.ptr.opaque_ref.data)
+
+    @opaque.setter
+    def opaque(self, v):
+        lib.av_buffer_unref(&self.ptr.opaque_ref)
+
+        if v is None:
+            return
+        self.ptr.opaque_ref = opaque_container.add(v)

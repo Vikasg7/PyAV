@@ -8,10 +8,6 @@ from av.utils cimport check_ndarray, check_ndarray_shape
 from av.video.format cimport get_pix_fmt, get_video_format
 from av.video.plane cimport VideoPlane
 
-import warnings
-
-from av.deprecation import AVDeprecationWarning
-
 
 cdef object _cinit_bypass_sentinel
 
@@ -44,9 +40,8 @@ cdef byteswap_array(array, bint big_endian):
         return array
 
 
-cdef copy_array_to_plane(array, VideoPlane plane, unsigned int bytes_per_pixel):
-    cdef bytes imgbytes = array.tobytes()
-    cdef const uint8_t[:] i_buf = imgbytes
+cdef copy_bytes_to_plane(img_bytes, VideoPlane plane, unsigned int bytes_per_pixel, bint flip_horizontal, bint flip_vertical):
+    cdef const uint8_t[:] i_buf = img_bytes
     cdef size_t i_pos = 0
     cdef size_t i_stride = plane.width * bytes_per_pixel
     cdef size_t i_size = plane.height * i_stride
@@ -55,10 +50,31 @@ cdef copy_array_to_plane(array, VideoPlane plane, unsigned int bytes_per_pixel):
     cdef size_t o_pos = 0
     cdef size_t o_stride = abs(plane.line_size)
 
-    while i_pos < i_size:
-        o_buf[o_pos:o_pos + i_stride] = i_buf[i_pos:i_pos + i_stride]
-        i_pos += i_stride
+    cdef int start_row, end_row, step
+    if flip_vertical:
+        start_row = plane.height - 1
+        end_row = -1
+        step = -1
+    else:
+        start_row = 0
+        end_row = plane.height
+        step = 1
+
+    cdef int i, j
+    for row in range(start_row, end_row, step):
+        i_pos = row * i_stride
+        if flip_horizontal:
+            for i in range(0, i_stride, bytes_per_pixel):
+                for j in range(bytes_per_pixel):
+                    o_buf[o_pos + i + j] = i_buf[i_pos + i_stride - i - bytes_per_pixel + j]
+        else:
+            o_buf[o_pos:o_pos + i_stride] = i_buf[i_pos:i_pos + i_stride]
         o_pos += o_stride
+
+
+cdef copy_array_to_plane(array, VideoPlane plane, unsigned int bytes_per_pixel):
+    cdef bytes imgbytes = array.tobytes()
+    copy_bytes_to_plane(imgbytes, plane, bytes_per_pixel, False, False)
 
 
 cdef useful_array(VideoPlane plane, unsigned int bytes_per_pixel=1, str dtype="uint8"):
@@ -124,8 +140,8 @@ cdef class VideoFrame(Frame):
 
     def __repr__(self):
         return (
-            f"<av.{self.__class__.__name__} #{self.index}, pts={self.pts} "
-            f"{self.format.name} {self.width}x{self.height} at 0x{id(self):x}>"
+            f"<av.{self.__class__.__name__}, pts={self.pts} {self.format.name} "
+            f"{self.width}x{self.height} at 0x{id(self):x}>"
         )
 
     @property
@@ -584,9 +600,11 @@ cdef class VideoFrame(Frame):
 
         return frame
 
-    def __getattribute__(self, attribute):
-        # This method should be deleted when `frame.index` is removed
-        if attribute == "index":
-            warnings.warn("Using `frame.index` is deprecated.", AVDeprecationWarning)
-
-        return Frame.__getattribute__(self, attribute)
+    @staticmethod
+    def from_bytes(img_bytes: bytes, width: int, height: int, format="rgba", flip_horizontal=False, flip_vertical=False):
+        frame = VideoFrame(width, height, format)
+        if format == "rgba":
+            copy_bytes_to_plane(img_bytes, frame.planes[0], 4, flip_horizontal, flip_vertical)
+        else:
+            raise NotImplementedError(f"Format '{format}' is not supported.")
+        return frame

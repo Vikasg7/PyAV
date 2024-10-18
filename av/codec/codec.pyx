@@ -139,7 +139,6 @@ class UnknownCodecError(ValueError):
 
 
 cdef class Codec:
-
     """Codec(name, mode='r')
 
     :param str name: The codec name.
@@ -161,7 +160,6 @@ cdef class Codec:
     """
 
     def __cinit__(self, name, mode="r"):
-
         if name is _cinit_sentinel:
             return
 
@@ -189,7 +187,6 @@ cdef class Codec:
             raise RuntimeError("Found codec does not match mode.", name, mode)
 
     cdef _init(self, name=None):
-
         if not self.ptr:
             raise UnknownCodecError(name)
 
@@ -204,8 +201,11 @@ cdef class Codec:
         if self.is_encoder and lib.av_codec_is_decoder(self.ptr):
             raise RuntimeError("%s is both encoder and decoder.")
 
-    def create(self):
-        """Create a :class:`.CodecContext` for this codec."""
+    def create(self, str kind = None):
+        """Create a :class:`.CodecContext` for this codec.
+
+        :param str kind: Gives a hint to static type checkers for what exact CodecContext is used.
+        """
         from .context import CodecContext
         return CodecContext.create(self)
 
@@ -218,6 +218,7 @@ cdef class Codec:
 
     @property
     def name(self): return self.ptr.name or ""
+
     @property
     def long_name(self): return self.ptr.long_name or ""
 
@@ -343,9 +344,8 @@ cdef get_codec_names():
             break
     return names
 
+
 codecs_available = get_codec_names()
-
-
 codec_descriptor = wrap_avclass(lib.avcodec_get_class())
 
 
