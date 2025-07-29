@@ -117,8 +117,8 @@ def assertImagesAlmostEqual(a: Image, b: Image, epsilon: float = 0.1) -> None:
     import PIL.ImageFilter as ImageFilter
 
     assert a.size == b.size
-    a = a.filter(ImageFilter.BLUR).getdata() # type: ignore
-    b = b.filter(ImageFilter.BLUR).getdata() # type: ignore
+    a = a.filter(ImageFilter.BLUR).getdata()  # type: ignore
+    b = b.filter(ImageFilter.BLUR).getdata()  # type: ignore
     for i, ax, bx in zip(range(len(a)), a, b):  # type: ignore
         diff = sum(abs(ac / 256 - bc / 256) for ac, bc in zip(ax, bx)) / 3
         assert diff < epsilon, f"images differed by {diff} at index {i}; {ax} {bx}"
